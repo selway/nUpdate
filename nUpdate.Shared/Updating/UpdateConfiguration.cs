@@ -1,4 +1,4 @@
-﻿// Copyright © Dominic Beger 2017
+﻿// Copyright © Dominic Beger 2018
 
 using System;
 using System.Collections.Generic;
@@ -40,6 +40,17 @@ namespace nUpdate.Updating
         ///     The operations of the update package.
         /// </summary>
         public List<Operation> Operations { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the rollout condition mode used for selecting the updates.
+        /// </summary>
+        public RolloutConditionMode RolloutConditionMode { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the rollout conditions which contain additional specifications that the client must meet in order to
+        ///     receive an update.
+        /// </summary>
+        public List<RolloutCondition> RolloutConditions { get; set; }
 
         /// <summary>
         ///     The signature of the update package (Base64 encoded).
@@ -111,7 +122,7 @@ namespace nUpdate.Updating
 
                 if (proxy != null)
                     wc.Proxy = proxy;
-                
+
                 // Check for SSL and ignore it
                 ServicePointManager.ServerCertificateValidationCallback += delegate { return true; };
                 var source = wc.DownloadString(configFileUri);

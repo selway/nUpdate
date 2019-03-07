@@ -1,4 +1,4 @@
-﻿// Author: Dominic Beger (Trade/ProgTrade) 2016
+﻿// Copyright © Dominic Beger 2018
 
 using System;
 using System.Collections.Generic;
@@ -23,6 +23,30 @@ namespace nUpdate.Administration.UI.Dialogs
             InitializeComponent();
         }
 
+        private void clearLog_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Project.Log.Clear();
+                UpdateProject.SaveProject(Project.Path, Project);
+            }
+            catch (Exception ex)
+            {
+                Invoke(new Action(() =>
+                    Popup.ShowPopup(this, SystemIcons.Error, "Error while sclearing the log.", ex, PopupButtons.Ok)));
+            }
+
+            Close();
+        }
+
+        private void HistoryDialog_Load(object sender, EventArgs e)
+        {
+            Text = string.Format(Text, Project.Name, Program.VersionString);
+            orderComboBox.SelectedIndex = 0;
+            InitializeLog();
+            SetActivationState();
+        }
+
         /// <summary>
         ///     Initializes the log.
         /// </summary>
@@ -34,7 +58,7 @@ namespace nUpdate.Administration.UI.Dialogs
             {
                 var item = new ActionListItem
                 {
-                    ItemText = $"{logEntry.PackageVersion} - {logEntry.EntryTime}"
+                    ItemText = $"{logEntry.PackageVersion} - {logEntry.EntryTime}" +  (logEntry.Username == null ? string.Empty : $" by {logEntry.Username}")
                 };
 
                 switch (logEntry.Entry)
@@ -51,13 +75,64 @@ namespace nUpdate.Administration.UI.Dialogs
                         item.HeaderText = "Uploaded package";
                         item.ItemImage = Resources.Upload;
                         break;
+                    case LogEntry.Edit:
+                        item.HeaderText = "Edit package";
+                        item.ItemImage = Resources.Edit;
+                        break;
                 }
+
                 _logItemsStack.Push(item);
             }
 
-            foreach (var item in _logItemsStack)
+            foreach (var item in _logItemsStack) historyList.Items.Add(item);
+        }
+
+        /// <summary>
+        ///     Orders the listbox items ascending.
+        /// </summary>
+        private void OrderAscending()
+        {
+            var ascendingItems = new Stack<ActionListItem>();
+            foreach (var item in _logItemsStack) ascendingItems.Push(item);
+
+            historyList.Items.Clear();
+            foreach (var orderedItem in ascendingItems) historyList.Items.Add(orderedItem);
+        }
+
+        private void orderComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            switch (orderComboBox.SelectedIndex)
             {
-                historyList.Items.Add(item);
+                case 0:
+                    OrderDescending();
+                    break;
+                case 1:
+                    OrderAscending();
+                    break;
+            }
+        }
+
+        /// <summary>
+        ///     Orders the listbox items descending.
+        /// </summary>
+        private void OrderDescending()
+        {
+            historyList.Items.Clear();
+            foreach (var orderedItem in _logItemsStack) historyList.Items.Add(orderedItem);
+        }
+
+        private void saveToFileButton_Click(object sender, EventArgs e)
+        {
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Filter = "Text files (*.txt)|*.txt";
+                if (sfd.ShowDialog() != DialogResult.OK) return;
+                var logEntryList =
+                    Project.Log.Select(
+                            logEntry =>
+                                $"{logEntry.PackageVersion}-{logEntry.Entry}-{logEntry.EntryTime}" + (logEntry.Username == null ? "" : $" by {logEntry.Username}"))
+                        .ToList();
+                File.WriteAllLines(sfd.FileName, logEntryList);
             }
         }
 
@@ -76,87 +151,6 @@ namespace nUpdate.Administration.UI.Dialogs
                 clearLogButton.Enabled = true;
                 saveToFileButton.Enabled = true;
                 orderComboBox.Enabled = true;
-            }
-        }
-
-        /// <summary>
-        ///     Orders the listbox items ascending.
-        /// </summary>
-        private void OrderAscending()
-        {
-            var ascendingItems = new Stack<ActionListItem>();
-            foreach (var item in _logItemsStack)
-            {
-                ascendingItems.Push(item);
-            }
-
-            historyList.Items.Clear();
-            foreach (var orderedItem in ascendingItems)
-            {
-                historyList.Items.Add(orderedItem);
-            }
-        }
-
-        /// <summary>
-        ///     Orders the listbox items descending.
-        /// </summary>
-        private void OrderDescending()
-        {
-            historyList.Items.Clear();
-            foreach (var orderedItem in _logItemsStack)
-            {
-                historyList.Items.Add(orderedItem);
-            }
-        }
-
-        private void HistoryDialog_Load(object sender, EventArgs e)
-        {
-            Text = string.Format(Text, Project.Name, Program.VersionString);
-            orderComboBox.SelectedIndex = 0;
-            InitializeLog();
-            SetActivationState();
-        }
-
-        private void clearLog_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                Project.Log.Clear();
-                UpdateProject.SaveProject(Project.Path, Project);
-            }
-            catch (Exception ex)
-            {
-                Invoke(new Action(() =>
-                    Popup.ShowPopup(this, SystemIcons.Error, "Error while sclearing the log.", ex, PopupButtons.Ok)));
-            }
-            Close();
-        }
-
-        private void orderComboBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            switch (orderComboBox.SelectedIndex)
-            {
-                case 0:
-                    OrderDescending();
-                    break;
-                case 1:
-                    OrderAscending();
-                    break;
-            }
-        }
-
-        private void saveToFileButton_Click(object sender, EventArgs e)
-        {
-            using (var sfd = new SaveFileDialog())
-            {
-                sfd.Filter = "Text files (*.txt)|*.txt";
-                if (sfd.ShowDialog() != DialogResult.OK) return;
-                var logEntryList =
-                    Project.Log.Select(
-                        logEntry =>
-                            $"{logEntry.PackageVersion}-{logEntry.Entry}-{logEntry.EntryTime}")
-                        .ToList();
-                File.WriteAllLines(sfd.FileName, logEntryList);
             }
         }
     }

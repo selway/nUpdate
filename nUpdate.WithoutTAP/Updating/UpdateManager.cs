@@ -1,4 +1,4 @@
-// Copyright © Dominic Beger 2017
+// Copyright © Dominic Beger 2018
 
 using System;
 using System.Collections.Generic;
@@ -297,10 +297,11 @@ namespace nUpdate.Updating
             // Check for SSL and ignore it
             ServicePointManager.ServerCertificateValidationCallback += delegate { return true; };
             var configuration =
-                UpdateConfiguration.Download(UpdateConfigurationFileUri, HttpAuthenticationCredentials, Proxy, SearchTimeout);
+                UpdateConfiguration.Download(UpdateConfigurationFileUri, HttpAuthenticationCredentials, Proxy,
+                    SearchTimeout);
 
             var result = new UpdateResult(configuration, CurrentVersion,
-                IncludeAlpha, IncludeBeta);
+                IncludeAlpha, IncludeBeta,Conditions);
             if (!result.UpdatesFound)
                 return false;
 
@@ -367,7 +368,7 @@ namespace nUpdate.Updating
                     throw exception;
 
                 var result = new UpdateResult(configurations, CurrentVersion,
-                    IncludeAlpha, IncludeBeta);
+                    IncludeAlpha, IncludeBeta,Conditions);
                 if (!result.UpdatesFound)
                     return false;
 

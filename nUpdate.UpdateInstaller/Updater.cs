@@ -1,4 +1,4 @@
-﻿// Author: Dominic Beger (Trade/ProgTrade) 2017
+﻿// Copyright © Dominic Beger 2018
 
 using System;
 using System.Collections.Generic;
@@ -26,6 +26,102 @@ namespace nUpdate.UpdateInstaller
         private int _totalTaskCount;
 
         /// <summary>
+        ///     Performs a recursive copy of a given directory.
+        /// </summary>
+        /// <param name="sourceDirName">The path of the source directory.</param>
+        /// <param name="destDirName">The path of the destination directory.</param>
+        private void CopyDirectoryRecursively(string sourceDirName, string destDirName)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(sourceDirName)) throw new ArgumentException("sourceDirName");
+                if (string.IsNullOrEmpty(destDirName)) throw new ArgumentException("destDirName");
+
+                var dir = new DirectoryInfo(sourceDirName);
+                var sourceDirectories = dir.GetDirectories();
+
+                var files = dir.GetFiles();
+
+                if (files.Length == 0 && sourceDirectories.Length == 0)
+                    return;
+
+                if (!Directory.Exists(destDirName))
+                    Directory.CreateDirectory(destDirName);
+
+                foreach (var file in files)
+                {
+                    var continueCopyLoop = true;
+                    var aimPath = Path.Combine(destDirName, file.Name);
+                    while (continueCopyLoop)
+                        try
+                        {
+                            file.CopyTo(aimPath, true);
+                            continueCopyLoop = false;
+                        }
+                        catch (IOException ex)
+                        {
+                            if (FileHelper.IsFileLocked(ex))
+                                _progressReporter.Fail(new Exception(string.Format(Program.FileInUseError, aimPath)));
+                            else
+                                throw;
+                        }
+
+                    _doneTaskAmount += 1;
+                    var percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
+                    _progressReporter.ReportUnpackingProgress(percentage, file.Name);
+                }
+
+                foreach (var subDirectories in sourceDirectories)
+                {
+                    var aimDirectoryPath = Path.Combine(destDirName, subDirectories.Name);
+                    CopyDirectoryRecursively(subDirectories.FullName, aimDirectoryPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _progressReporter.Fail(ex);
+                _progressReporter.Terminate();
+                if (!Program.IsHostApplicationClosed)
+                    return;
+
+                var process = new Process
+                {
+                    StartInfo =
+                    {
+                        UseShellExecute = true,
+                        FileName = Program.ApplicationExecutablePath,
+                        Arguments =
+                            string.Join("|",
+                                Program.Arguments.Where(
+                                    item =>
+                                        item.ExecutionOptions ==
+                                        UpdateArgumentExecutionOptions.OnlyOnFaulted).Select(item => item.Argument))
+                    }
+                };
+                process.Start();
+            }
+        }
+
+        /// <summary>
+        ///     Loads the GUI either from a given external assembly, if one is set, or otherwise, uses the integrated GUI.
+        /// </summary>
+        /// <returns>
+        ///     Returns a new instance of the given object that implements the
+        ///     <see cref="IProgressReporter" />-interface.
+        /// </returns>
+        private IProgressReporter GetProgressReporter()
+        {
+            var assembly = string.IsNullOrEmpty(Program.ExternalGuiAssemblyPath) ||
+                           !File.Exists(Program.ExternalGuiAssemblyPath)
+                ? Assembly.GetExecutingAssembly()
+                : Assembly.LoadFrom(Program.ExternalGuiAssemblyPath);
+            var provider = ServiceProviderHelper.CreateServiceProvider(assembly);
+            if (provider == null)
+                throw new Exception("There is no service provider available.");
+            return (IProgressReporter) provider.GetService(typeof(IProgressReporter));
+        }
+
+        /// <summary>
         ///     Runs the updating process.
         /// </summary>
         public void RunUpdate()
@@ -36,12 +132,13 @@ namespace nUpdate.UpdateInstaller
             }
             catch (Exception ex)
             {
-                Popup.ShowPopup(SystemIcons.Error, "Error while initializing the graphic user interface.", ex,
+                Popup.ShowPopup(SystemIcons.Error, "Error while initializing the graphical user interface.", ex,
                     PopupButtons.Ok);
                 return;
             }
 
             ThreadPool.QueueUserWorkItem(arg => RunUpdateAsync());
+
             try
             {
                 _progressReporter.Initialize();
@@ -54,33 +151,16 @@ namespace nUpdate.UpdateInstaller
         }
 
         /// <summary>
-        ///     Loads the GUI either from a given external assembly, if one is set, or otherwise, from the integrated GUI.
-        /// </summary>
-        /// <returns>
-        ///     Returns a new instance of the given object that implements the
-        ///     <see cref="nUpdate.UpdateInstaller.Client.GuiInterface.IProgressReporter" />-interface.
-        /// </returns>
-        private IProgressReporter GetProgressReporter()
-        {
-            Assembly assembly = (string.IsNullOrEmpty(Program.ExternalGuiAssemblyPath) ||
-                                 !File.Exists(Program.ExternalGuiAssemblyPath)
-                ? Assembly.GetExecutingAssembly()
-                : Assembly.LoadFrom(Program.ExternalGuiAssemblyPath));
-            IServiceProvider provider = ServiceProviderHelper.CreateServiceProvider(assembly);
-            return (IProgressReporter) provider.GetService(typeof (IProgressReporter));
-        }
-
-        /// <summary>
         ///     Runs the updating process. This method does not block the calling thread.
         /// </summary>
         private void RunUpdateAsync()
         {
-            string parentPath = Directory.GetParent(Program.PackageFilePaths.First()).FullName;
+            var parentPath = Directory.GetParent(Program.PackageFilePaths.First()).FullName;
             /* Extract and count for the progress */
             foreach (var packageFilePath in Program.PackageFilePaths)
             {
                 var version = new UpdateVersion(Path.GetFileNameWithoutExtension(packageFilePath));
-                string extractedDirectoryPath =
+                var extractedDirectoryPath =
                     Path.Combine(parentPath, version.ToString());
                 Directory.CreateDirectory(extractedDirectoryPath);
                 using (var zf = ZipFile.Read(packageFilePath))
@@ -88,15 +168,11 @@ namespace nUpdate.UpdateInstaller
                     zf.ParallelDeflateThreshold = -1;
                     try
                     {
-                        foreach (var entry in zf)
-                        {
-                            entry.Extract(extractedDirectoryPath);
-                        }
+                        foreach (var entry in zf) entry.Extract(extractedDirectoryPath);
                     }
                     catch (Exception ex)
                     {
                         _progressReporter.Fail(ex);
-                        CleanUp();
                         _progressReporter.Terminate();
                         if (!Program.IsHostApplicationClosed || !Program.RestartHostApplication)
                             return;
@@ -110,9 +186,9 @@ namespace nUpdate.UpdateInstaller
                                 Arguments =
                                     string.Join("|",
                                         Program.Arguments.Where(
-                                            item =>
-                                                item.ExecutionOptions ==
-                                                UpdateArgumentExecutionOptions.OnlyOnFaulted)
+                                                item =>
+                                                    item.ExecutionOptions ==
+                                                    UpdateArgumentExecutionOptions.OnlyOnFaulted)
                                             .Select(item => item.Argument))
                             }
                         };
@@ -132,60 +208,53 @@ namespace nUpdate.UpdateInstaller
 
             foreach (
                 var array in
-                    Program.Operations.Select(entry => entry.Value)
-                        .Select(operationEnumerable => operationEnumerable.Where(
+                Program.Operations.Select(entry => entry.Value)
+                    .Select(operationEnumerable => operationEnumerable.Where(
                             item =>
                                 item.Area == OperationArea.Registry && item.Method != OperationMethod.SetValue)
-                            .Select(registryOperation => registryOperation.Value2)
-                            .OfType<JArray>()).SelectMany(entries =>
-                            {
-                                var entryEnumerable = entries as JArray[] ?? entries.ToArray();
-                                return entryEnumerable;
-                            }))
-            {
+                        .Select(registryOperation => registryOperation.Value2)
+                        .OfType<JArray>()).SelectMany(entries =>
+                    {
+                        var entryEnumerable = entries as JArray[] ?? entries.ToArray();
+                        return entryEnumerable;
+                    }))
                 _totalTaskCount += array.ToObject<IEnumerable<string>>().Count();
-            }
 
             foreach (
                 var array in
-                    Program.Operations.Select(entry => entry.Value)
-                        .Select(operationEnumerable => operationEnumerable.Where(
+                Program.Operations.Select(entry => entry.Value)
+                    .Select(operationEnumerable => operationEnumerable.Where(
                             item => item.Area == OperationArea.Files && item.Method == OperationMethod.Delete)
-                            .Select(registryOperation => registryOperation.Value2)
-                            .OfType<JArray>()).SelectMany(entries =>
-                            {
-                                var entryEnumerable = entries as JArray[] ?? entries.ToArray();
-                                return entryEnumerable;
-                            }))
-            {
+                        .Select(registryOperation => registryOperation.Value2)
+                        .OfType<JArray>()).SelectMany(entries =>
+                    {
+                        var entryEnumerable = entries as JArray[] ?? entries.ToArray();
+                        return entryEnumerable;
+                    }))
                 _totalTaskCount += array.ToObject<IEnumerable<string>>().Count();
-            }
 
             foreach (
                 var array in
-                    Program.Operations.Select(entry => entry.Value)
-                        .Select(operationEnumerable => operationEnumerable.Where(
+                Program.Operations.Select(entry => entry.Value)
+                    .Select(operationEnumerable => operationEnumerable.Where(
                             item =>
                                 item.Area == OperationArea.Registry && item.Method == OperationMethod.SetValue)
-                            .Select(registryOperation => registryOperation.Value2)
-                            .OfType<JArray>()).SelectMany(entries =>
-                            {
-                                var entryEnumerable = entries as JArray[] ?? entries.ToArray();
-                                return entryEnumerable;
-                            }))
-            {
+                        .Select(registryOperation => registryOperation.Value2)
+                        .OfType<JArray>()).SelectMany(entries =>
+                    {
+                        var entryEnumerable = entries as JArray[] ?? entries.ToArray();
+                        return entryEnumerable;
+                    }))
                 _totalTaskCount += array.ToObject<IEnumerable<Tuple<string, object, RegistryValueKind>>>().Count();
-            }
 
             foreach (
                 var packageFilePath in
-                    Program.PackageFilePaths)
+                Program.PackageFilePaths)
             {
                 var version = new UpdateVersion(Path.GetFileNameWithoutExtension(packageFilePath));
-                string extractedDirectoryPath =
+                var extractedDirectoryPath =
                     Path.Combine(parentPath, version.ToString());
                 foreach (var directory in new DirectoryInfo(extractedDirectoryPath).GetDirectories())
-                {
                     switch (directory.Name)
                     {
                         case "Program":
@@ -199,15 +268,15 @@ namespace nUpdate.UpdateInstaller
                             CopyDirectoryRecursively(directory.FullName, Path.GetTempPath());
                             break;
                         case "Desktop":
+                            if (WindowsServiceHelper.IsRunningInServiceContext) continue;
                             CopyDirectoryRecursively(directory.FullName,
                                 Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
                             break;
                     }
-                }
 
                 try
                 {
-                    IEnumerable<Operation> currentVersionOperations =
+                    var currentVersionOperations =
                         Program.Operations.Any(item => new UpdateVersion(item.Key) == version)
                             ? Program.Operations.First(item => new UpdateVersion(item.Key) == version).Value
                             : Enumerable.Empty<Operation>();
@@ -231,15 +300,16 @@ namespace nUpdate.UpdateInstaller
                                             foreach (
                                                 var fileToDelete in secondValueAsArray.ToObject<IEnumerable<string>>())
                                             {
-                                                string path = Path.Combine(deleteFileFullPath, fileToDelete);
+                                                var path = Path.Combine(deleteFileFullPath, fileToDelete);
                                                 if (File.Exists(path))
                                                     File.Delete(path);
 
                                                 _doneTaskAmount += 1;
-                                                percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                                percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                                 _progressReporter.ReportOperationProgress(percentage,
                                                     string.Format(Program.FileDeletingOperationText, fileToDelete));
                                             }
+
                                         break;
 
                                     case OperationMethod.Rename:
@@ -254,13 +324,14 @@ namespace nUpdate.UpdateInstaller
                                                     operation.Value2.ToString()));
 
                                         _doneTaskAmount += 1;
-                                        percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                        percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                         _progressReporter.ReportOperationProgress(percentage,
                                             string.Format(Program.FileRenamingOperationText,
                                                 Path.GetFileName(operation.Value),
                                                 operation.Value2));
                                         break;
                                 }
+
                                 break;
                             case OperationArea.Registry:
                                 switch (operation.Method)
@@ -274,10 +345,12 @@ namespace nUpdate.UpdateInstaller
                                                 RegistryManager.CreateSubKey(operation.Value, registryKey);
 
                                                 _doneTaskAmount += 1;
-                                                percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                                percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                                 _progressReporter.ReportOperationProgress(percentage,
-                                                    string.Format(Program.RegistrySubKeyCreateOperationText, registryKey));
+                                                    string.Format(Program.RegistrySubKeyCreateOperationText,
+                                                        registryKey));
                                             }
+
                                         break;
 
                                     case OperationMethod.Delete:
@@ -289,10 +362,12 @@ namespace nUpdate.UpdateInstaller
                                                 RegistryManager.DeleteSubKey(operation.Value, registryKey);
 
                                                 _doneTaskAmount += 1;
-                                                percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                                percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                                 _progressReporter.ReportOperationProgress(percentage,
-                                                    string.Format(Program.RegistrySubKeyDeleteOperationText, registryKey));
+                                                    string.Format(Program.RegistrySubKeyDeleteOperationText,
+                                                        registryKey));
                                             }
+
                                         break;
 
                                     case OperationMethod.SetValue:
@@ -300,37 +375,40 @@ namespace nUpdate.UpdateInstaller
                                         if (secondValueAsArray != null)
                                             foreach (
                                                 var nameValuePair in
-                                                    secondValueAsArray
-                                                        .ToObject<IEnumerable<Tuple<string, object, RegistryValueKind>>>
+                                                secondValueAsArray
+                                                    .ToObject<IEnumerable<Tuple<string, object, RegistryValueKind>>>
                                                         ())
                                             {
                                                 RegistryManager.SetValue(operation.Value, nameValuePair.Item1,
                                                     nameValuePair.Item2, nameValuePair.Item3);
 
                                                 _doneTaskAmount += 1;
-                                                percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                                percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                                 _progressReporter.ReportOperationProgress(percentage,
                                                     string.Format(Program.RegistryNameValuePairSetValueOperationText,
                                                         nameValuePair.Item1, nameValuePair.Item2));
                                             }
+
                                         break;
 
                                     case OperationMethod.DeleteValue:
                                         secondValueAsArray = operation.Value2 as JArray;
                                         if (secondValueAsArray != null)
                                             foreach (var valueName in secondValueAsArray.ToObject<IEnumerable<string>>()
-                                                )
+                                            )
                                             {
                                                 RegistryManager.DeleteValue(operation.Value, valueName);
 
                                                 _doneTaskAmount += 1;
-                                                percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                                percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                                 _progressReporter.ReportOperationProgress(percentage,
                                                     string.Format(Program.RegistryNameValuePairDeleteValueOperationText,
                                                         valueName));
                                             }
+
                                         break;
                                 }
+
                                 break;
 
                             case OperationArea.Processes:
@@ -341,7 +419,8 @@ namespace nUpdate.UpdateInstaller
                                         var processFileFullPath =
                                             Path.Combine(Operation.GetDirectory(processFilePathParts[0]),
                                                 string.Join("\\",
-                                                    processFilePathParts.Where(item => item != processFilePathParts[0])));
+                                                    processFilePathParts.Where(item =>
+                                                        item != processFilePathParts[0])));
 
                                         var process = new Process
                                         {
@@ -362,7 +441,7 @@ namespace nUpdate.UpdateInstaller
                                         }
 
                                         _doneTaskAmount += 1;
-                                        percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                        percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                         _progressReporter.ReportOperationProgress(percentage,
                                             string.Format(Program.ProcessStartOperationText, operation.Value));
                                         break;
@@ -373,11 +452,12 @@ namespace nUpdate.UpdateInstaller
                                             foundProcess.Kill();
 
                                         _doneTaskAmount += 1;
-                                        percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                        percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                         _progressReporter.ReportOperationProgress(percentage,
                                             string.Format(Program.ProcessStopOperationText, operation.Value));
                                         break;
                                 }
+
                                 break;
 
                             case OperationArea.Services:
@@ -388,7 +468,7 @@ namespace nUpdate.UpdateInstaller
                                             ((JArray) operation.Value2).ToObject<string[]>());
 
                                         _doneTaskAmount += 1;
-                                        percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                        percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                         _progressReporter.ReportOperationProgress(percentage,
                                             string.Format(Program.ServiceStartOperationText, operation.Value));
                                         break;
@@ -397,11 +477,12 @@ namespace nUpdate.UpdateInstaller
                                         ServiceManager.StopService(operation.Value);
 
                                         _doneTaskAmount += 1;
-                                        percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
+                                        percentage = (float) _doneTaskAmount / _totalTaskCount * 100f;
                                         _progressReporter.ReportOperationProgress(percentage,
                                             string.Format(Program.ServiceStopOperationText, operation.Value));
                                         break;
                                 }
+
                                 break;
                             case OperationArea.Scripts:
                                 switch (operation.Method)
@@ -411,6 +492,7 @@ namespace nUpdate.UpdateInstaller
                                         helper.ExecuteScript(operation.Value);
                                         break;
                                 }
+
                                 break;
                         }
                     }
@@ -418,7 +500,6 @@ namespace nUpdate.UpdateInstaller
                 catch (Exception ex)
                 {
                     _progressReporter.Fail(ex);
-                    CleanUp();
                     _progressReporter.Terminate();
                     if (!Program.IsHostApplicationClosed || !Program.RestartHostApplication)
                         return;
@@ -442,7 +523,6 @@ namespace nUpdate.UpdateInstaller
                 }
             }
 
-            CleanUp();
             if (Program.IsHostApplicationClosed && Program.RestartHostApplication)
             {
                 var p = new Process
@@ -454,102 +534,15 @@ namespace nUpdate.UpdateInstaller
                         Arguments =
                             string.Join("|",
                                 Program.Arguments.Where(
-                                    item =>
-                                        item.ExecutionOptions == UpdateArgumentExecutionOptions.OnlyOnSucceeded)
+                                        item =>
+                                            item.ExecutionOptions == UpdateArgumentExecutionOptions.OnlyOnSucceeded)
                                     .Select(item => item.Argument))
                     }
                 };
                 p.Start();
             }
+
             _progressReporter.Terminate();
-        }
-
-        /// <summary>
-        ///     Cleans up all resources.
-        /// </summary>
-        private void CleanUp()
-        {
-            try
-            {
-                Directory.Delete(Directory.GetParent(Program.PackageFilePaths.First()).FullName, true);
-            }
-            catch (Exception ex)
-            {
-                _progressReporter.Fail(ex);
-            }
-        }
-
-        /// <summary>
-        ///     Performs a recursive copy of a given directory.
-        /// </summary>
-        /// <param name="sourceDirName">The path of the source directory.</param>
-        /// <param name="destDirName">The path of the destination directory.</param>
-        private void CopyDirectoryRecursively(string sourceDirName, string destDirName)
-        {
-            try
-            {
-                var dir = new DirectoryInfo(sourceDirName);
-                var sourceDirectories = dir.GetDirectories();
-
-                if (!Directory.Exists(destDirName))
-                    Directory.CreateDirectory(destDirName);
-
-                var files = dir.GetFiles();
-                foreach (var file in files)
-                {
-                    bool continueCopyLoop = true;
-                    var aimPath = Path.Combine(destDirName, file.Name);
-                    while (continueCopyLoop)
-                    {
-                        try
-                        {
-                            file.CopyTo(aimPath, true);
-                            continueCopyLoop = false;
-                        }
-                        catch (IOException ex)
-                        {
-                            if (FileHelper.IsFileLocked(ex))
-                                _progressReporter.Fail(new Exception(string.Format(Program.FileInUseError, aimPath)));
-                            else
-                                throw;
-                        }
-                    }
-
-                    _doneTaskAmount += 1;
-                    var percentage = ((float) _doneTaskAmount/_totalTaskCount)*100f;
-                    _progressReporter.ReportUnpackingProgress(percentage, file.Name);
-                }
-
-                foreach (var subDirectories in sourceDirectories)
-                {
-                    var aimDirectoryPath = Path.Combine(destDirName, subDirectories.Name);
-                    CopyDirectoryRecursively(subDirectories.FullName, aimDirectoryPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                _progressReporter.Fail(ex);
-                CleanUp();
-                _progressReporter.Terminate();
-                if (!Program.IsHostApplicationClosed)
-                    return;
-
-                var process = new Process
-                {
-                    StartInfo =
-                    {
-                        UseShellExecute = true,
-                        FileName = Program.ApplicationExecutablePath,
-                        Arguments =
-                            string.Join("|",
-                                Program.Arguments.Where(
-                                    item =>
-                                        item.ExecutionOptions ==
-                                        UpdateArgumentExecutionOptions.OnlyOnFaulted).Select(item => item.Argument))
-                    }
-                };
-                process.Start();
-            }
         }
     }
 }

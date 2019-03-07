@@ -77,7 +77,10 @@
   <ItemGroup>
     <Compile Include="Core\Architecture.cs" />
     <Compile Include="Core\DevelopmentalStage.cs" />
+    <Compile Include="Core\Extensions.cs" />
     <Compile Include="Core\IconHelper.cs" />
+    <Compile Include="Core\RolloutCondition.cs" />
+    <Compile Include="Core\RolloutConditionMode.cs" />
     <Compile Include="Core\SizeHelper.cs" />
     <Compile Include="Core\IDeepCopy.cs" />
     <Compile Include="Core\Localization\LocalizationHelper.cs" />
@@ -128,6 +131,7 @@
     <None Include="app.config" />
     <EmbeddedResource Include="Core\Localization\en.json" />
     <EmbeddedResource Include="Core\Localization\zh-CN.json" />
+    <EmbeddedResource Include="Core\Localization\it-IT.json" />
     <None Include="packages.config" />
     <EmbeddedResource Include="Core\Localization\de-AT.json" />
     <EmbeddedResource Include="Core\Localization\de-CH.json" />

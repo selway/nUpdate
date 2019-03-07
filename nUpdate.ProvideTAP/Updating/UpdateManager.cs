@@ -1,4 +1,4 @@
-// Copyright © Dominic Beger 2017
+// Copyright © Dominic Beger 2018
 
 using System;
 using System.IO;
@@ -218,10 +218,11 @@ namespace nUpdate.Updating
             // Check for SSL and ignore it
             ServicePointManager.ServerCertificateValidationCallback += delegate { return true; };
             var configuration =
-                UpdateConfiguration.Download(UpdateConfigurationFileUri, HttpAuthenticationCredentials, Proxy, SearchTimeout);
+                UpdateConfiguration.Download(UpdateConfigurationFileUri, HttpAuthenticationCredentials, Proxy,
+                    SearchTimeout);
 
             var result = new UpdateResult(configuration, CurrentVersion,
-                IncludeAlpha, IncludeBeta);
+                IncludeAlpha, IncludeBeta,Conditions);
             if (!result.UpdatesFound)
                 return false;
 
@@ -262,16 +263,17 @@ namespace nUpdate.Updating
 
                 if (!ConnectionManager.IsConnectionAvailable())
                     return false;
-                
+
                 _searchCancellationTokenSource.Token.ThrowIfCancellationRequested();
                 // Check for SSL and ignore it
                 ServicePointManager.ServerCertificateValidationCallback += delegate { return true; };
                 var configuration =
-                    await UpdateConfiguration.DownloadAsync(UpdateConfigurationFileUri, HttpAuthenticationCredentials, Proxy, _searchCancellationTokenSource, SearchTimeout);
+                    await UpdateConfiguration.DownloadAsync(UpdateConfigurationFileUri, HttpAuthenticationCredentials,
+                        Proxy, _searchCancellationTokenSource, SearchTimeout);
 
                 _searchCancellationTokenSource.Token.ThrowIfCancellationRequested();
                 var result = new UpdateResult(configuration, CurrentVersion,
-                    IncludeAlpha, IncludeBeta);
+                    IncludeAlpha, IncludeBeta,Conditions);
                 if (!result.UpdatesFound)
                     return false;
 
