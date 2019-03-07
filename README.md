@@ -2,9 +2,9 @@
 
 # nUpdate - .NET Update Solution
 
-[![Release](https://img.shields.io/badge/release-v3.2.1-blue.svg)](https://github.com/ProgTrade/nUpdate/releases)
-[![NuGet](https://img.shields.io/badge/nuget%20nUpdate.ProvideTAP-v3.2.1-red.svg)](https://www.nuget.org/packages/nUpdate.ProvideTAP/)
-[![NuGet](https://img.shields.io/badge/nuget%20nUpdate.WithoutTAP-v3.2.1-red.svg)](https://www.nuget.org/packages/nUpdate.WithoutTAP/)  
+[![Release](https://img.shields.io/badge/release-v3.3.1-blue.svg)](https://github.com/ProgTrade/nUpdate/releases)
+[![NuGet](https://img.shields.io/badge/nuget%20nUpdate.ProvideTAP-v3.3.1-red.svg)](https://www.nuget.org/packages/nUpdate.ProvideTAP/)
+[![NuGet](https://img.shields.io/badge/nuget%20nUpdate.WithoutTAP-v3.3.1-red.svg)](https://www.nuget.org/packages/nUpdate.WithoutTAP/)  
 [![Issues](https://img.shields.io/github/issues/ProgTrade/nUpdate.svg)](https://github.com/ProgTrade/nUpdate/issues)
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/ProgTrade/nUpdate/master/LICENSE)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=dominic%2ebeger%40hotmail%2ede&lc=DE&item_name=nUpdate&no_note=0&currency_code=EUR&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHostedGuest)
@@ -12,9 +12,8 @@
 nUpdate is a modern update system for .NET applications.
 Providing high security and an easy-to-use user interface, it is the perfect solution for your software.
 
-nUpdate is in a very advanced state. Its development began in autumn 2013 and the project has grown up until now. It contains a lot of features and provides you with everything you'll need to manage your updates.
-
-Also, nUpdate is designed to fit in with all operating systems since Windows Vista and its components can be used in a very flexible way. It offers you the possibility to completely customize the functionality and user interfaces. This flexiblity is based on interfaces, service providers and the Event-based or Task-based aynchronous pattern. nUpdate will also take care of your clients by using intelligent algorithms that will prevent your users from being stressed out by having to do a lot of work manually and repeatedly, such as installing every single update on its own. Instead, nUpdate connects all updates, installs them in one go and does still take care of the version order to avoid any conflicts between the packages and makes sure that the data is installed in exactly the way you wanted.
+![](https://www.nupdate.net/img/new-updates.png)
+![](https://www.nupdate.net/img/updates-download.png)
 
 ## Features
 
@@ -29,7 +28,6 @@ Also, nUpdate is designed to fit in with all operating systems since Windows Vis
 - Supports very large update packages
 - ...
 
-
 ## Installation
 
 You can get the necessary libraries and applications from the current [releases](https://github.com/ProgTrade/nUpdate/releases). The nUpdate library itself can also be installed in your application using the NuGet package manager.
@@ -41,7 +39,7 @@ You can get the necessary libraries and applications from the current [releases]
 If you want to use nUpdate with the Taskbased Asynchronous Pattern including `async` and `await`, then install this package:
 
 ```
-PM> Install-Package nUpdate.ProvideTAP -Version 3.2.1
+PM> Install-Package nUpdate.ProvideTAP -Version 3.3.1
 ```
 
 ##### Trouble installing nUpdate.ProvideTAP?
@@ -53,7 +51,7 @@ It may be that Visual Studio shows you a warning like `The primary reference "nU
 Otherwise, if you want to use the Eventbased Asynchronous Pattern, make sure to install this package:
 
 ```
-PM> Install-Package nUpdate.WithoutTAP -Version 3.2.1
+PM> Install-Package nUpdate.WithoutTAP -Version 3.3.1
 ```
 
 ## Web
@@ -80,7 +78,6 @@ Have a look at the [develop]-branch for the newest changes.
 [nUpdate]:http://www.nupdate.net/
 [@nUpdateLib]:http://twitter.com/nUpdateLib
 
-## Screenshots
+## Supported by
 
-![](https://www.nupdate.net/img/new-updates.png)
-![](https://www.nupdate.net/img/updates-download.png)
+<img src="https://www.nupdate.net/jetbrains.png" width="96" height="96"/>
